@@ -1,9 +1,6 @@
 (ns rxplay.tasks
-  (:require [rx.lang.clojure.core :as rx]
-            [rx.lang.clojure.interop :as rxi]
-            [rx.lang.clojure.blocking :as rxb])
-  (:import [rx Observable]
-           [java.util.concurrent TimeUnit])
+  (:require [rx.lang.clojure.core :as rx])
+  (:import [java.util.concurrent TimeUnit])
   (:gen-class))
 
 (defonce tasks
@@ -17,9 +14,5 @@
        (apply map #(.delay %1 %2 TimeUnit/MILLISECONDS))
        (apply rx/merge)))
 
-(defn tst
-  []
-  (-> tasks
-      vals
-      do-tasks!
-      (rx/subscribe prn)))
+(defn tst []
+  (-> tasks vals do-tasks! (rx/subscribe prn)))
