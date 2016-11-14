@@ -3,6 +3,7 @@
             [mount.core :refer [defstate]])
   (:gen-class))
 
-  (defstate state :start
-    {:port (or (env :port) 8080)
-     :group-threads 8})
+(defstate state :start
+  {:port (or (env :port) 8080)
+   :group-threads 8
+   :task-threads 16})
