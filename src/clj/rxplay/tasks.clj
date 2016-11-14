@@ -1,18 +1,32 @@
 (ns rxplay.tasks
-  (:require [rx.lang.clojure.core :as rx])
-  (:import [java.util.concurrent TimeUnit])
+  (:require [rxplay.util :as util]
+            [rxplay.config :as config]
+            [rx.lang.clojure.core :as rx]
+            [mount.core :refer [defstate]])
+  (:import [java.util.concurrent Executors TimeUnit]
+           [rx.subjects PublishSubject SerializedSubject]
+           [rx.schedulers Schedulers])
   (:gen-class))
 
-(defonce tasks
-  {1 {:id 1 :duration 1000}
-   2 {:id 2 :duration 3000}
-   3 {:id 3 :duration 20000}})
+(defstate group-state :start (atom {:last-id 0 :groups {}}))
+(defstate group-thread-pool
+  :start (Executors/newFixedThreadPool (config/state :group-threads)))
 
-(defn do-tasks!
-  [tsq]
-  (->> [(map rx/return tsq) (map :duration tsq)]
-       (apply map #(.delay %1 %2 TimeUnit/MILLISECONDS))
-       (apply rx/merge)))
+(defn alloc-group-id! []
+  (-> group-state
+      (swap! update :last-id inc)
+      :last-id))
 
-(defn tst []
-  (-> tasks vals do-tasks! (rx/subscribe prn)))
+(defn update-group!
+  [{:keys [id] :as group}]
+  (swap! group-state assoc-in [:groups id] group))
+
+(defn create-group-subject []
+  (->> (PublishSubject/create)
+       (SerializedSubject.)
+       (rx/subscribe-on (Schedulers/from group-thread-pool))
+       (rx/map #(assoc % :id (alloc-group-id!)))
+       (rx/do #(util/send-http! (:chan %) %))
+       (rx/do update-group!)))
+
+(defstate group-subject :start #(create-group-subject))

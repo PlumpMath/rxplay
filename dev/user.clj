@@ -2,7 +2,8 @@
   (:require [rxplay.server]
             [ring.middleware.reload :refer [wrap-reload]]
             [figwheel-sidecar.repl-api :as figwheel]
-
+            [mount.core :refer [start stop]]
+            [clojure.tools.namespace.repl :refer [refresh]]
             [clojure.java.shell]))
 
 ;; Let Clojure warn you when it needs to reflect on types, or when it does math
@@ -17,11 +18,19 @@
     (println "Starting less.")
     (clojure.java.shell/sh "lein" "less" "auto")))
 
-(def http-handler
-  (wrap-reload #'rxplay.server/http-handler))
+; (def http-handler
+;   (wrap-reload (var rxplay.server/http-handler)))
 
 (defn run []
   (figwheel/start-figwheel!)
   (start-less))
 
 (def browser-repl figwheel/cljs-repl)
+
+(defn go []
+  (start)
+  :ready)
+
+(defn reset []
+  (stop)
+  (refresh :after 'user/go))

@@ -15,8 +15,10 @@
                  [environ "1.0.3"]
                  [http-kit "2.1.19"]
                  [reagent "0.6.0-rc"]
-                 [org.clojars.jconti/rxclojure "1.2.0"]
-                 [proto-repl "0.3.1"]]
+                 [org.clojars.jconti/rxclojure "1.2.2"]
+                 [proto-repl "0.3.1"]
+                 [mount "0.1.10"]
+                 [ring/ring-json "0.4.0"]]
 
   :plugins [[lein-cljsbuild "1.1.3"]
             [lein-environ "1.0.3"]
@@ -114,7 +116,8 @@
              {:dependencies [[figwheel "0.5.4-4"]
                              [figwheel-sidecar "0.5.4-4"]
                              [com.cemerick/piggieback "0.2.1"]
-                             [org.clojure/tools.nrepl "0.2.12"]]
+                             [org.clojure/tools.nrepl "0.2.12"]
+                             [org.clojure/tools.namespace "0.2.11"]]
 
               :plugins [[lein-figwheel "0.5.4-4"]
                         [lein-doo "0.1.6"]]
