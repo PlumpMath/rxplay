@@ -35,7 +35,7 @@
 
 (defstate http-server
   :start
-  #(run-server http-handler {:port (:port config/state) :join? false}))
+  (run-server http-handler {:port (:port config/state) :join? false}))
 
 (defn -main []
   (start))

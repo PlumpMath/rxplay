@@ -4,5 +4,5 @@
             #?(:clj [clojure.test :refer :all]
                :cljs [cljs.test])))
 
-(deftest example-passing-test-cljc
-  (is (= 1 1)))
+; (deftest example-passing-test-cljc
+;   (is (= 1 1)))

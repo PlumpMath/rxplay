@@ -9,44 +9,50 @@
   (:gen-class))
 
 (def tasks-db
-  {1: {:id 1 :description "Task 1"}
-   2: {:id 2 :description "Task 2"}})
+  {1 {:id 1 :description "Task 1" :duration 3}
+   2 {:id 2 :description "Task 2" :duration 10}})
 
-(defstate group-state :start (atom {:last-id 0 :groups {}}))
+(defstate group-state :start (atom {}))
 (defstate group-thread-pool
-  :start (Executors/newFixedThreadPool (config/state :group-threads)))
+  :start (Executors/newFixedThreadPool (config/state :group-threads))
+  :stop (.shutdown group-thread-pool))
 
-(defstate task-state :start (atom {:last-id 0 :tasks {}}))
+(defstate task-state :start (atom {}))
 (defstate task-thread-pool
-  :start (Executors/newFixedThreadPool (config/state :task-threads)))
+  :start (Executors/newFixedThreadPool (config/state :task-threads))
+  :stop (.shutdown task-thread-pool))
 
-(defn alloc-id! [state]
-  (-> state (swap! update :last-id inc) :last-id))
+(defstate id-observable :start (.serialize (rx/seq->o (iterate inc 1))))
 
-(defn update-state!
-  [state data-path {:keys [id] :as data}]
-  (swap! state assoc-in (concat data-path id) data))
-
-(defn create-group-subject [] (SerializedSubject. (PublishSubject/create)))
-
-(defn create-group-observable [group-subj]
-  (->> group-subj
-       (rx/subscribe-on (Schedulers/from group-thread-pool))
-       (rx/map #(assoc % :id (alloc-id! group-state)))
-       (rx/do #(update-state! group-state [:groups] %))
+(defn create-group-observable [group-subject group-statej]
+  (->> (rx/map #(assoc %1 :id %2)
+               (rx/subscribe-on (Schedulers/from group-thread-pool) group-subject)
+               id-observable)
+       (rx/do #(swap! group-state assoc (:id %) %))
        (rx/do #(util/send-http! (:chan %) %))))
 
-(defstate group-subject :start (create-group-subject))
-(defstate group-observable :start (create-group-observable group-subject))
+(defstate group-subject :start (SerializedSubject. (PublishSubject/create)))
+(defstate group-observable :start (create-group-observable group-subject group-state))
 
-(defn make-group-tasks
-  [{:keys [tasks args] :as group}]
-  (for [tid tasks arg args] 
-    (rx/return (assoc (tasks-db tid) :arg arg))))
+(defn make-group-tasks [{:keys [tasks args id] :as group}]
+  (rx/seq->o
+    (for [tid tasks arg args :let [task (tasks-db tid)]]
+      (-> task
+          (dissoc :id)
+          (assoc :task-id tid :arg arg :group-id id)))))
 
-(defn make-task-observable [group-obs]
-  (->> group-obs
-       (rx/subscribe-on (Schedulers/from task-thread-pool))
-       (rx/flatmap make-group-tasks)
-       (rx/do #(update-state task-state [:tasks] %))))
-       
+(defn create-task-observable [group-observable task-state group-state]
+  (->> (rx/map #(assoc %1 :id %2)
+               (->> group-observable
+                    (rx/subscribe-on (Schedulers/from task-thread-pool))
+                    (rx/flatmap make-group-tasks))
+               id-observable)
+       (rx/map #(assoc % :state :waiting))
+       (rx/do #(swap! task-state assoc (:id %) %))
+       (rx/do #(swap! group-state assoc-in [(:group-id %) :task-runs (:id %)] (:state %)))
+       (rx/flatmap #(.delay (rx/return %) (:duration %) TimeUnit/SECONDS))
+       (rx/map #(assoc % :state :done))
+       (rx/do #(swap! task-state assoc (:id %) %))
+       (rx/do #(swap! group-state assoc-in [(:group-id %) :task-runs (:id %)] (:state %)))))
+
+(defstate task-observable :start (create-task-observable group-observable task-state group-state))
