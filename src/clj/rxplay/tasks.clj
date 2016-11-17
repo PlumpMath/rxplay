@@ -30,7 +30,8 @@
                (rx/subscribe-on (Schedulers/from group-thread-pool) group-subject)
                id-observable)
        (rx/do #(swap! group-state assoc (:id %) %))
-       (rx/do #(util/send-http! (:chan %) %))))
+       (rx/do #(util/send-http! (:chan %) %))
+       (.share)))
 
 (defstate group-observable :start (create-group-observable))
 
@@ -53,6 +54,7 @@
        (rx/flatmap #(.delay (rx/return %) (:duration %) TimeUnit/SECONDS))
        (rx/map #(assoc % :state :done))
        (rx/do #(swap! task-state assoc (:id %) %))
-       (rx/do #(swap! group-state assoc-in [(:group-id %) :task-runs (:id %)] (:state %)))))
+       (rx/do #(swap! group-state assoc-in [(:group-id %) :task-runs (:id %)] (:state %)))
+       (.share)))
 
 (defstate task-observable :start (create-task-observable))
