@@ -23,16 +23,16 @@
   :stop (.shutdown task-thread-pool))
 
 (defstate id-observable :start (.serialize (rx/seq->o (iterate inc 1))))
+(defstate group-subject :start (SerializedSubject. (PublishSubject/create)))
 
-(defn create-group-observable [group-subject group-statej]
+(defn create-group-observable []
   (->> (rx/map #(assoc %1 :id %2)
                (rx/subscribe-on (Schedulers/from group-thread-pool) group-subject)
                id-observable)
        (rx/do #(swap! group-state assoc (:id %) %))
        (rx/do #(util/send-http! (:chan %) %))))
 
-(defstate group-subject :start (SerializedSubject. (PublishSubject/create)))
-(defstate group-observable :start (create-group-observable group-subject group-state))
+(defstate group-observable :start (create-group-observable))
 
 (defn make-group-tasks [{:keys [tasks args id] :as group}]
   (rx/seq->o
@@ -41,7 +41,7 @@
           (dissoc :id)
           (assoc :task-id tid :arg arg :group-id id)))))
 
-(defn create-task-observable [group-observable task-state group-state]
+(defn create-task-observable []
   (->> (rx/map #(assoc %1 :id %2)
                (->> group-observable
                     (rx/subscribe-on (Schedulers/from task-thread-pool))
@@ -55,4 +55,4 @@
        (rx/do #(swap! task-state assoc (:id %) %))
        (rx/do #(swap! group-state assoc-in [(:group-id %) :task-runs (:id %)] (:state %)))))
 
-(defstate task-observable :start (create-task-observable group-observable task-state group-state))
+(defstate task-observable :start (create-task-observable))

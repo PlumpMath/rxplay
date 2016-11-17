@@ -1,23 +1,24 @@
 (ns rxplay.example-test
   (:require [clojure.test :refer :all]
-            [rxplay.tasks :as tasks]
+            [rxplay.tasks]
             [mount.core :as mount]
             [rx.lang.clojure.core :as rx]
             [rxplay.server :as server]
-            [rx.lang.clojure.blocking :refer [first] :rename {first bf}]))
+            [rx.lang.clojure.blocking :as rx.blocking])
+  (:gen-class))
 
-(deftest task-creation
-  (let [grp (rx/return {:id 1 :tasks [1] :args [42]})
-        ts (atom {})
-        gs (atom {})
-        cfg (-> (mount/except [#'rxplay.server/http-server])
-                (mount/swap {#'rxplay.tasks/group-observable grp
-                             #'rxplay.tasks/task-state ts
-                             #'rxplay.tasks/group-state gs})
-                (mount/start))
-        res (bf tasks/task-observable)
-        _ (mount/stop)
-        exp (merge {:id 1 :group-id 1 :task-id 1 :arg 42 :state :done} (tasks/tasks-db 1))]
-    (is (= res exp))
-    (is (= @ts {1 exp}))
-    (is (= @gs {1 {:task-runs {1 :done}}}))))
+(deftest task-observable-task-creation
+  (let [cfg (-> (mount/except [#'server/http-server])
+                (mount/swap {#'rxplay.tasks/group-observable
+                             (rx/return {:id 1 :tasks [2] :args [42]})
+                             #'rxplay.tasks/task-state
+                             (atom {})
+                             #'rxplay.tasks/group-state
+                             (atom {})}))
+        exp (merge (rxplay.tasks/tasks-db 2)
+                   {:id 1 :group-id 1 :task-id 2 :arg 42 :state :done})]
+    (mount/start cfg)
+    (is (= exp (rx.blocking/first rxplay.tasks/task-observable)))
+    (is (= {1 exp} @rxplay.tasks/task-state))
+    (is (= {1 {:task-runs {1 :done}}} @rxplay.tasks/group-state))
+    (mount/stop)))

@@ -9,7 +9,7 @@
             [ring.middleware.logger :refer [wrap-with-logger]]
             [ring.middleware.json :refer [wrap-json-body wrap-json-response]]
             [org.httpkit.server :refer [run-server]]
-            [mount.core :refer [defstate start]])
+            [mount.core :refer [defstate start start-with]])
   (:gen-class))
 
 (defn handle-post-group
@@ -33,9 +33,11 @@
       wrap-json-response
       wrap-gzip))
 
+(defstate server-config :start {:port (config/state :port)})
+
 (defstate http-server
-  :start
-  (run-server http-handler {:port (:port config/state) :join? false}))
+  :start (run-server http-handler (merge server-config {:join? false}))
+  :stop (http-server))
 
 (defn -main []
-  (start))
+  (start-with {#'http-server (run-server http-handler server-config)}))
